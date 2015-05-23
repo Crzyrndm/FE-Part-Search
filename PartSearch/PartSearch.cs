@@ -38,11 +38,10 @@ namespace PartSearch
 
         IEnumerator initialise()
         {
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 14; i++) // FE will do a refresh after a count of 16. Deletion is done after a count of 12.
                 yield return null;
             customTestCategory.initialise(PartCategorizer.Instance.filters[0]);
             testCategory = PartCategorizer.Instance.filters[0].subcategories.First(c => c.button.categoryName == "testCategory");
-            FilterExtensions.Core.setSelectedCategory(); // refresh the stupid UI
         }
 
         void refresh()
@@ -85,6 +84,9 @@ namespace PartSearch
 
         bool showWindow = false;
         int selectedFilter = 0;
+        /// <summary>
+        /// Draws the window detailing an overview of the subcategory.
+        /// </summary>
         void drawWindow(int id)
         {
             GUILayout.Label("Select filter to view/edit");
@@ -116,6 +118,9 @@ namespace PartSearch
             GUI.DragWindow();
         }
 
+        /// <summary>
+        /// Draws all the checks associated with the given Filter
+        /// </summary>
         void drawFilter(Filter filter)
         {
             bool tmpBool = GUILayout.Toggle(filter.invert, "Invert filter result", GUI.skin.button);
@@ -145,9 +150,12 @@ namespace PartSearch
                 filter.checks.Add(defaultCheck());
                 refresh();
             }
-            // add check
         }
 
+        /// <summary>
+        /// draws a toggle with the check details listed and a delete button
+        /// </summary>
+        /// <returns>true if the Check should be removed from the Filter</returns>
         bool drawCheck(Check check)
         {
             bool ret = false;
@@ -167,6 +175,7 @@ namespace PartSearch
                 checkToEdit = check;
                 showEditWindow = true;
                 typeEdit = false;
+                valueEdit = false;
             }
             if (GUILayout.Button("X", GUILayout.Height(60), GUILayout.Width(40)))
                 ret = true;
@@ -177,6 +186,9 @@ namespace PartSearch
         bool showEditWindow = false;
         bool typeEdit = false;
         Check checkToEdit = null;
+        /// <summary>
+        /// The window for editing a selected Check. Type, value, invert, contains, and equality.
+        /// </summary>
         void checkEditWindow(int id)
         {
             GUILayout.BeginHorizontal();
@@ -231,51 +243,89 @@ namespace PartSearch
         }
 
         bool valueEdit = false;
+        /// <summary>
+        /// drawing the value line according to check type
+        /// </summary>
         void valueDisplayEdit(Check check)
         {
-            string tmpstr = "";
+            string tmpstr = check.value;
+            int tmpSel;
             GUILayout.BeginHorizontal();
             switch (check.type)
             {
+                // list valid resources to select from.
                 case CheckType.propellant:
                 case CheckType.resource:
                     GUILayout.Label("Value: ");
-                    valueEdit = GUILayout.Toggle(valueEdit, checkToEdit.value, GUI.skin.button);
+                    valueEdit = GUILayout.Toggle(valueEdit, check.value, GUI.skin.button);
                     GUILayout.EndHorizontal();
                     if (valueEdit)
                     {
                         if (typeEdit)
                             typeEdit = false;
-                        tmpstr = Core.Instance.resources[GUILayout.SelectionGrid((int)Core.Instance.resources.IndexOf(check.value), SearchUtils.buildContentFromList(check, Core.Instance.resources), 4)];
+                        tmpSel = GUILayout.SelectionGrid(-1, SearchUtils.buildContentFromList(check, Core.Instance.resources), 4);
+                        if (tmpSel >= 0)
+                            addRemoveItem(ref tmpstr, Core.Instance.resources[tmpSel]);
                     }
                     break;
+                // list valid categories to select from
                 case CheckType.category:
                     GUILayout.Label("Value: ");
-                    valueEdit = GUILayout.Toggle(valueEdit, checkToEdit.value, GUI.skin.button);
+                    valueEdit = GUILayout.Toggle(valueEdit, check.value, GUI.skin.button);
                     GUILayout.EndHorizontal();
                     if (valueEdit)
                     {
                         if (typeEdit)
                             typeEdit = false;
-                        tmpstr = PartCategories[GUILayout.SelectionGrid((int)PartCategories.IndexOf(check.value), SearchUtils.buildContentFromList(check, PartCategories), 4)];
+                        tmpSel = GUILayout.SelectionGrid((int)PartCategories.IndexOf(check.value), SearchUtils.buildContentFromList(check, PartCategories), 4);
+                        if (tmpSel >= 0)
+                            addRemoveItem(ref tmpstr, PartCategories[tmpSel]);
                     }
                     break;
                 default:
                     GUILayout.BeginHorizontal();
                     GUILayout.Label("Value: ");
-                    tmpstr = GUILayout.TextField(checkToEdit.value);
+                    tmpstr = GUILayout.TextField(check.value);
                     GUILayout.EndHorizontal();
                     break;
             }
-            if (tmpstr != "" && check.value != tmpstr && SearchUtils.parseValueForType(check, tmpstr))
+            if (check.value != tmpstr && SearchUtils.parseValueForType(check, tmpstr))
             {
                 check.value = tmpstr;
-                if (tmpstr.Last() != '.') // things will go bonkers if I try parse an incomplete float
+                if (tmpstr.Last() != '.') // enable floats to be written out without any other special tricks by the user
                     refresh();
             }
             
         }
 
+        void addRemoveItem(ref string stringToEdit, string itemToChange)
+        {
+            List<string> values = stringToEdit.Split(',').ToList();
+            if (Event.current.button == 0) // left click to add
+            {
+                if (!values.Any(s => s.Trim() == itemToChange))
+                    stringToEdit += ',' + itemToChange;
+            }
+            else if (Event.current.button == 1) // right click to remove
+            {
+                if (values.Any(s => s.Trim() == itemToChange))
+                {
+                    values.Remove(itemToChange);
+                    if (values.Count > 0)
+                    {
+                        stringToEdit = values[0];
+                        for (int i = 1; i < values.Count; i++)
+                            stringToEdit += ',' + values[i];
+                    }
+                                        
+                }
+            }
+        }
+
+        /// <summary>
+        /// used for initialising things. Just provides a working check object to use
+        /// </summary>
+        /// <returns>type:category, value:Pods</returns>
         Check defaultCheck()
         {
             return new Check("category", "Pods");

@@ -32,16 +32,30 @@ namespace PartSearch
                     return true; // all string values
                 case CheckType.crew:
                 case CheckType.size:
-                    int i = 0;
-                    return int.TryParse(ToParse, out i); // integer type values
+                    {
+                        string[] values = ToParse.Split(',');
+                        int i = 0;
+                        bool test = true;
+                        foreach (string s in values)
+                            test &= int.TryParse(s.Trim(), out i);
+                        return test; // integer type values
+                    }
                 case CheckType.mass:
                 case CheckType.crashTolerance:
                 case CheckType.cost:
                 case CheckType.maxTemp:
-                    if (ToParse.Last() == '.')
-                        return true;
-                    float f = 0;
-                    return float.TryParse(ToParse, out f); // float or double type values
+                    {
+                        string[] values = ToParse.Split(',');
+                        float f = 0;
+                        bool test = true;
+                        foreach (string s in values)
+                        {
+                            if (s.Trim().Last() == '.')
+                                continue;
+                            test &= float.TryParse(s.Trim(), out f);
+                        }
+                        return test; // float or double type values
+                    }
                 default:
                     return true;
             }
@@ -97,12 +111,12 @@ namespace PartSearch
             }
         }
 
-        public static GUIContent[] buildContentFromEnum(Check check, Type enumType)
+        public static GUIContent[] buildContentFromEnum(Check check, Type toBuild)
         {
-            int arraySize = Enum.GetValues(enumType).Length;
+            int arraySize = Enum.GetValues(toBuild).Length;
             GUIContent[] content = new GUIContent[arraySize];
             for (int i = 0; i < arraySize; i++)
-                content[i] = new GUIContent(Enum.Parse(enumType, i.ToString()).ToString());
+                content[i] = new GUIContent(Enum.Parse(toBuild, i.ToString()).ToString());
             return content;
         }
 
