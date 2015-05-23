@@ -70,6 +70,8 @@ namespace PartSearch
         public void OnGUI()
         {
             GUI.skin = HighLogic.Skin;
+            if (Event.current.type == EventType.Repaint)
+                tooltip = "";
             if (customTestCategory == null)
                 return;
             if (showWindow)
@@ -80,6 +82,8 @@ namespace PartSearch
                 editWindowRect.y = windowRect.y;
                 editWindowRect = GUILayout.Window(45684123, editWindowRect, checkEditWindow, "");
             }
+            if (tooltip != "")
+                valueRect = GUILayout.Window(48510054, valueRect, tooltipWindow, "", GUI.skin.label);
         }
 
         bool showWindow = false;
@@ -283,10 +287,14 @@ namespace PartSearch
                     }
                     break;
                 default:
-                    GUILayout.BeginHorizontal();
                     GUILayout.Label("Value: ");
                     tmpstr = GUILayout.TextField(check.value);
+                    valueRect = GUILayoutUtility.GetLastRect();
+                    valueRect.x += editWindowRect.x;
+                    valueRect.y += editWindowRect.y + 30;
                     GUILayout.EndHorizontal();
+                    populateTooltip(check, tmpstr);
+                    tooltip = tooltip.TrimEnd(new char[] { '\n', '\r' });
                     break;
             }
             if (check.value != tmpstr && SearchUtils.parseValueForType(check, tmpstr))
@@ -295,9 +303,49 @@ namespace PartSearch
                 if (tmpstr.Last() != '.') // enable floats to be written out without any other special tricks by the user
                     refresh();
             }
-            
         }
 
+        void populateTooltip(Check check, string match)
+        {
+            tooltip = "";
+            int hintCount = 10;
+            switch(check.type)
+            {
+                case CheckType.folder:
+                    int count = 0;
+                    List<string> matches = new List<string>();
+                    foreach (KeyValuePair<string,string> kvp in Core.Instance.partPathDict)
+                    {
+                        string folder = kvp.Value.Split(new char[] { '/', '\\' })[0];
+                        if (folder.StartsWith(match) && !matches.Contains(folder))
+                        {
+                            tooltip += folder + "\r\n";
+                            matches.Add(folder);
+                            count++;
+                        }
+                        if (count >= hintCount)
+                            break;
+                    }
+                    break;
+                case CheckType.manufacturer:
+                case CheckType.moduleName:
+                case CheckType.moduleTitle:
+                case CheckType.partName:
+                case CheckType.partTitle:
+                case CheckType.path:
+                case CheckType.profile:
+                case CheckType.tech:
+                default:
+                    tooltip = "";
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// add or remove a string item to/from a CSV list of string items
+        /// </summary>
+        /// <param name="stringToEdit">the current CSV list of string items</param>
+        /// <param name="itemToChange">the string value to add/remove</param>
         void addRemoveItem(ref string stringToEdit, string itemToChange)
         {
             List<string> values = stringToEdit.Split(',').ToList();
@@ -311,19 +359,26 @@ namespace PartSearch
                 if (values.Any(s => s.Trim() == itemToChange))
                 {
                     values.Remove(itemToChange);
+                    stringToEdit = "";
                     if (values.Count > 0)
                     {
                         stringToEdit = values[0];
                         for (int i = 1; i < values.Count; i++)
                             stringToEdit += ',' + values[i];
                     }
-                                        
                 }
             }
         }
 
+        Rect valueRect = new Rect();
+        string tooltip = "";
+        void tooltipWindow(int id)
+        {
+            GUILayout.Label(tooltip, GUI.skin.textArea);
+        }
+
         /// <summary>
-        /// used for initialising things. Just provides a working check object to use
+        /// used for initialising things. Just provides a working check object to quickly use
         /// </summary>
         /// <returns>type:category, value:Pods</returns>
         Check defaultCheck()
