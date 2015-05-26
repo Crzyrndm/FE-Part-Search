@@ -19,7 +19,9 @@ namespace PartSearch
 
         List<string> PartCategories = new List<string>() { "None", "Pods", "Engines", "Fuel Tanks", "Command and Control", "Structural", "Aerodynamics", "Utility", "Science" };
         List<string> customChecks = new List<string>() { "adapter", "multicoupler" };
-        
+
+        List<string> partNames = new List<string>();
+        List<string> partTitles = new List<string>();
         List<string> folders = new List<string>();
         List<string> manufacturers = new List<string>();
         List<string> moduleNames = new List<string>();
@@ -42,6 +44,8 @@ namespace PartSearch
         {
             foreach (AvailablePart ap in PartLoader.Instance.parts)
             {
+                partNames.Add(ap.name);
+                partTitles.Add(ap.title);
                 if (Core.Instance.partPathDict.ContainsKey(ap.name))
                     folders.AddUnique(Core.Instance.partPathDict[ap.name].Split(new char[] { '/', '\\' })[0]);
                 if (!string.IsNullOrEmpty(ap.manufacturer))
@@ -227,7 +231,14 @@ namespace PartSearch
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label("Check Type: ");
-            typeEdit = GUILayout.Toggle(typeEdit, Check.getTypeString(checkToEdit.type), GUI.skin.button);
+            GUI.SetNextControlName("focus");
+            bool tmpB = GUILayout.Toggle(typeEdit, Check.getTypeString(checkToEdit.type), GUI.skin.button);
+            if (tmpB != typeEdit)
+            {
+                GUI.FocusControl("focus");
+                typeEdit = tmpB;
+                editWindowRect.height = 0;
+            }
             GUILayout.EndHorizontal();
             if (typeEdit)
             {
@@ -244,6 +255,8 @@ namespace PartSearch
                 }
                 GUILayout.Space(20);
             }
+            if (showTooltip && GUI.GetNameOfFocusedControl() != "focus")
+                typeEdit = false;
             if (checkToEdit.type != CheckType.check) // check type will need lots of special case handling...
             {
                 valueDisplayEdit(checkToEdit);
@@ -291,50 +304,55 @@ namespace PartSearch
                 // list valid resources to select from.
                 case CheckType.propellant:
                 case CheckType.resource:
-                    
-                    valueEdit = GUILayout.Toggle(valueEdit, check.value, GUI.skin.button);
-                    GUILayout.EndHorizontal();
-                    if (valueEdit)
                     {
-                        if (typeEdit)
-                            typeEdit = false;
-                        tmpSel = GUILayout.SelectionGrid(-1, SearchUtils.buildContentFromList(check, Core.Instance.resources), 4);
-                        if (tmpSel >= 0)
-                            addRemoveItem(ref tmpstr, Core.Instance.resources[tmpSel]);
+                        valueEdit = GUILayout.Toggle(valueEdit, check.value, GUI.skin.button);
+                        GUILayout.EndHorizontal();
+                        if (valueEdit)
+                        {
+                            if (typeEdit)
+                                typeEdit = false;
+                            tmpSel = GUILayout.SelectionGrid(-1, SearchUtils.buildContentFromList(check, Core.Instance.resources), 4);
+                            if (tmpSel >= 0)
+                                addRemoveItem(ref tmpstr, Core.Instance.resources[tmpSel]);
+                        }
+                        break;
                     }
-                    break;
                 // list valid categories to select from
                 case CheckType.category:
-                    valueEdit = GUILayout.Toggle(valueEdit, check.value, GUI.skin.button);
-                    GUILayout.EndHorizontal();
-                    if (valueEdit)
                     {
-                        if (typeEdit)
-                            typeEdit = false;
-                        tmpSel = GUILayout.SelectionGrid((int)PartCategories.IndexOf(check.value), SearchUtils.buildContentFromList(check, PartCategories), 4);
-                        if (tmpSel >= 0)
-                            addRemoveItem(ref tmpstr, PartCategories[tmpSel]);
+                        valueEdit = GUILayout.Toggle(valueEdit, check.value, GUI.skin.button);
+                        GUILayout.EndHorizontal();
+                        if (valueEdit)
+                        {
+                            if (typeEdit)
+                                typeEdit = false;
+                            tmpSel = GUILayout.SelectionGrid((int)PartCategories.IndexOf(check.value), SearchUtils.buildContentFromList(check, PartCategories), 4);
+                            if (tmpSel >= 0)
+                                addRemoveItem(ref tmpstr, PartCategories[tmpSel]);
+                        }
+                        break;
                     }
-                    break;
                 default:
-                    GUI.SetNextControlName("valueEntry");
-                    tmpstr = GUILayout.TextField(check.value);
-                    showTooltip = (GUI.GetNameOfFocusedControl() == "valueEntry");
-                    valueRect = GUILayoutUtility.GetLastRect();
-                    valueRect.x = editWindowRect.x + editWindowRect.width;
-                    valueRect.y += editWindowRect.y - 3;
-                    valueRect.width = 150;
-                    GUILayout.EndHorizontal();
-                    string ttStr = tmpstr.Split(',').Last().Trim();
-                    string tmpttStr = populateTooltip(check, ttStr);
-                    if (ttStr != tmpttStr && !tmpstr.Contains(tmpttStr))
                     {
-                        if (tmpstr.Contains(','))
-                            tmpstr = tmpstr.Substring(0, tmpstr.LastIndexOf(',') + 1) + tmpttStr;
-                        else
-                            tmpstr = tmpttStr;
+                        GUI.SetNextControlName("valueEntry");
+                        tmpstr = GUILayout.TextField(check.value);
+                        showTooltip = (GUI.GetNameOfFocusedControl() == "valueEntry");
+                        valueRect = GUILayoutUtility.GetLastRect();
+                        valueRect.x = editWindowRect.x + editWindowRect.width;
+                        valueRect.y += editWindowRect.y - 3;
+                        valueRect.width = 150;
+                        GUILayout.EndHorizontal();
+                        string ttStr = tmpstr.Split(',').Last().Trim();
+                        string tmpttStr = populateTooltip(check, ttStr);
+                        if (ttStr != tmpttStr && !tmpstr.Contains(tmpttStr))
+                        {
+                            if (tmpstr.Contains(','))
+                                tmpstr = tmpstr.Substring(0, tmpstr.LastIndexOf(',') + 1) + tmpttStr;
+                            else
+                                tmpstr = tmpttStr;
+                        }
+                        break;
                     }
-                    break;
             }
             if (check.value != tmpstr && SearchUtils.parseValueForType(check, tmpstr))
             {
@@ -351,165 +369,50 @@ namespace PartSearch
 
             tooltip = "";
             int hintCount = 10;
-            int count = 0;
-            List<string> matches = new List<string>();
             switch (check.type)
             {
                 case CheckType.folder: // tooltip shows all root folders that could be a match
-                    foreach (string s in folders)
-                    {
-                        if (s.Contains(match))
-                        {
-                            tooltip += s + "\r\n";
-                            matches.Add(s);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
-                    break;
-                case CheckType.path: // tooltip shows all folders from the current directory that could match
-                    foreach (KeyValuePair<string, string> kvp in Core.Instance.partPathDict)
-                    {
-                        int splitIndex = stringLastIndexOfOrDefault(match, "/");
-                        if (kvp.Value.ToLower().StartsWith(match.ToLower()))
-                        {
-                            string toAdd = kvp.Value.Substring(splitIndex == 0 ? splitIndex : splitIndex + 1);
-                            if (toAdd.Contains('/'))
-                                toAdd = toAdd.Substring(0, toAdd.IndexOf('/') + 1);
-                            if (!matches.Contains(toAdd))
-                            {
-                                tooltip += toAdd + "\r\n";
-                                matches.Add(toAdd);
-                                count++;
-                            }
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && Event.current.type == EventType.keyDown && tooltip != "")
-                            return match.Substring(0, splitIndex == 0 ? splitIndex : splitIndex + 1) + tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(folders, match, hintCount);
                     break;
                 case CheckType.manufacturer:
-                    foreach (string s in manufacturers)
-                    {
-                        if (s.Contains(match))
-                        {
-                            tooltip += s + "\r\n";
-                            matches.Add(s);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(manufacturers, match, hintCount);
                     break;
                 case CheckType.moduleName:
-                    foreach (string s in moduleNames)
-                    {
-                        if (s.Contains(match))
-                        {
-                            tooltip += s + "\r\n";
-                            matches.Add(s);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(moduleNames, match, hintCount);
                     break;
                 case CheckType.moduleTitle:
-                    foreach (string s in moduleTitles)
-                    {
-                        if (s.Contains(match))
-                        {
-                            tooltip += s + "\r\n";
-                            matches.Add(s);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(moduleTitles, match, hintCount);
                     break;
                 case CheckType.partName:
-                    foreach (AvailablePart ap in PartLoader.Instance.parts)
-                    {
-                        if (ap.name.Contains(match))
-                        {
-                            tooltip += ap.name + "\r\n";
-                            matches.Add(ap.name);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(partNames, match, hintCount);
                     break;
                 case CheckType.partTitle:
-                    foreach (AvailablePart ap in PartLoader.Instance.parts)
-                    {
-                        if (ap.title.Contains(match))
-                        {
-                            tooltip += ap.title + "\r\n";
-                            matches.Add(ap.title);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(partTitles, match, hintCount);
                     break;
                 case CheckType.profile:
-                    foreach (string s in profiles)
-                    {
-                        if (s.Contains(match))
-                        {
-                            tooltip += s + "\r\n";
-                            matches.Add(s);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(profiles, match, hintCount);
                     break;
                 case CheckType.tech:
-                    foreach (string s in techs)
-                    {
-                        if (s.Contains(match))
-                        {
-                            tooltip += s + "\r\n";
-                            matches.Add(s);
-                            count++;
-                        }
-                        if (Event.current.keyCode == KeyCode.Tab && tooltip != "")
-                            return tooltip.TrimEnd(new char[] { '\n', '\r' });
-                        if (count >= hintCount)
-                            break;
-                    }
+                    tooltip = SearchUtils.buildTooltipFromList(techs, match, hintCount);
+                    break;
+                case CheckType.path:
+                    tooltip = SearchUtils.buildTooltipListFromPathDict(Core.Instance.partPathDict, match, hintCount);
                     break;
                 default:
-                    tooltip = "";
                     break;
+            }
+            if (Event.current.keyCode == KeyCode.Tab && Event.current.type == EventType.keyDown && tooltip != "")
+            {
+                if (check.type == CheckType.path)
+                {
+                    int splitIndex = Math.Max(match.LastIndexOf("/"), 0);
+                    return match.Substring(0, splitIndex == 0 ? splitIndex : splitIndex + 1) + tooltip.Split(new char[] { '\n', '\r' })[0];
+                }
+                else
+                    return tooltip.Split(new char[] { '\n', '\r' })[0];
             }
             tooltip = tooltip.TrimEnd(new char[] { '\n', '\r' });
             return match;
-        }
-
-        int stringLastIndexOfOrDefault(string toSearch, string toFind)
-        {
-            if (toSearch.Contains(toFind))
-                return toSearch.LastIndexOf(toFind);
-            return 0;
         }
 
         /// <summary>

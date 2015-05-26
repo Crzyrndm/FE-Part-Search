@@ -128,5 +128,50 @@ namespace PartSearch
                 content[i] = new GUIContent(toBuild[i]);
             return content;
         }
+
+        public static string buildTooltipFromList(List<string> toCheck, string toMatch, int limit)
+        {
+            int count = 0;
+            List<string> matches = new List<string>();
+            string tooltip = "";
+            foreach (string s in toCheck)
+            {
+                if (s.ToLower().Contains(toMatch.ToLower()) && !matches.Contains(toMatch))
+                {
+                    tooltip += s + "\r\n";
+                    matches.Add(s);
+                    count++;
+                    if (count >= limit)
+                        break;
+                }
+            }
+            return tooltip;
+        }
+
+        public static string buildTooltipListFromPathDict(Dictionary<string,string> toCheck, string toMatch, int limit)
+        {
+            int count = 0;
+            List<string> matches = new List<string>();
+            string tooltip = "";
+            foreach (KeyValuePair<string, string> kvp in toCheck)
+            {
+                int splitIndex = Math.Max(toMatch.LastIndexOf("/"), 0);
+                if (kvp.Value.ToLower().Contains(toMatch.ToLower()))
+                {
+                    string toAdd = kvp.Value.Substring(splitIndex == 0 ? splitIndex : splitIndex + 1);
+                    if (toAdd.Contains('/'))
+                        toAdd = toAdd.Substring(0, toAdd.IndexOf('/') + 1);
+                    if (!matches.Contains(toAdd))
+                    {
+                        tooltip += toAdd + "\r\n";
+                        matches.Add(toAdd);
+                        count++;
+                        if (count >= limit)
+                            break;
+                    }
+                }
+            }
+            return tooltip;
+        }
     }
 }
